@@ -2,6 +2,7 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from .comment import Comment
 
+
 class Review(BaseModel):
     userId: int
     bookId: int

@@ -23,7 +23,7 @@ app.register_blueprint(comment_bp)
 
 @app.route("/")
 def hello_world():
-    return "Hello, World!"
+    return "Welcome to the AdsGency Backend Project, <br> <a href='https://github.com/Ashwinnbr007/adsgency-project-backend'>Github Link</a>"
 
 
 if __name__ == "__main__":

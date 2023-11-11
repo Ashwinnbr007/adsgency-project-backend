@@ -16,7 +16,9 @@ def register():
     comment_data = request.get_json()
     id = comments_collection.count_documents({}) + 1
     try:
-        new_comment = Comment(commentId=id, userId=current_user['userId'], **comment_data)
+        new_comment = Comment(
+            commentId=id, userId=current_user["userId"], **comment_data
+        )
         comments_collection.insert_one(dict(new_comment))
     except ValidationError as e:
         return jsonify(message=str(e)), 403
