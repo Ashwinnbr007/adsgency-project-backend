@@ -4,12 +4,14 @@ class CreateUser(BaseModel):
     username: str
     email: str
     password: str
+    role: str = 'user'
 
 class User(BaseModel):
-    id: int
+    userId: int
     username: str
     email: str
-    role: str = 'user'
+    password:str
+    role: str
     
 class Token(BaseModel):
     access_token: str

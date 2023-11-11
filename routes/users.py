@@ -1,12 +1,12 @@
 from flask import Blueprint, request, jsonify
 from pydantic import ValidationError
-from models.user import CreateUser
+from models.user import CreateUser, User
 from mongo_connection import users_collection
 
-auth_bp = Blueprint("auth", __name__, url_prefix="/auth")
+user_bp = Blueprint("user", __name__, url_prefix="/user")
 
 
-@auth_bp.route("/register", methods=["POST"])
+@user_bp.route("/register", methods=["POST"])
 def register():
     from app import bcrypt
 
@@ -16,17 +16,23 @@ def register():
         return jsonify(message=str(e)), 400
 
     hashed_password = bcrypt.generate_password_hash(data.password).decode("utf-8")
+    
+    id = users_collection.count_documents({}) + 1
+    emailExists = users_collection.find_one({"email": data.email})
+    
+    if not emailExists:
+        new_user = User(
+            userId=id,
+            username=data.username,
+            email=data.email,
+            role=data.role,
+            password=hashed_password,
+        )
+        try:
+            users_collection.insert_one(dict(new_user))
+        except Exception as e:
+            return jsonify(message=str(e)), 500
 
-    new_user = {
-        "username": data.username,
-        "email": data.email,
-        "password": hashed_password,
-        "role": "user",
-    }
-
-    try:
-        users_collection.insert_one(new_user)
-    except Exception as e:
-        return jsonify(message=str(e)), 500
-
-    return jsonify(message="User registered successfully!"), 201
+        return jsonify(message="User registered successfully!"), 201
+    
+    return jsonify(message="Email already registered, please use a different Email ID!"), 409

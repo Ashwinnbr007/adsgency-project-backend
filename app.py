@@ -1,10 +1,17 @@
 from flask import Flask
 from flask_bcrypt import Bcrypt
-from routes.users import auth_bp
+from flask_cors import CORS
+from routes.users import user_bp
+from routes.books import book_bp
 
 app = Flask(__name__)
+CORS(app)
 bcrypt = Bcrypt(app)
-app.register_blueprint(auth_bp)
+
+# Register endpoint blueprints
+app.register_blueprint(user_bp)
+app.register_blueprint(book_bp)
+
 
 @app.route('/')
 def hello_world():
