@@ -1,4 +1,11 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import (
+    create_access_token,
+    get_jwt_identity,
+    jwt_required,
+    verify_jwt_in_request,
+)
+from utils.utils import verify_admin_role
 from pydantic import ValidationError
 from models.user import CreateUser, User
 from mongo_connection import users_collection
@@ -41,8 +48,55 @@ def register():
     )
 
 
+@user_bp.route("/login", methods=["POST"])
+def login():
+    from app import bcrypt
+
+    data = request.get_json()
+
+    if "email" in data:
+        identity_method = {"email": data.get("email")}
+    else:
+        identity_method = {"username": data.get("username")}
+
+    password = data.get("password")
+
+    user = users_collection.find_one(identity_method)
+
+    if user and bcrypt.check_password_hash(user["password"], password):
+        del user["_id"]
+        del user["password"]
+        access_token = create_access_token(identity=user)
+        return jsonify({"access_token": access_token}), 200
+    else:
+        return jsonify({"message": "Invalid username or password"}), 401
+
+
+@user_bp.route("/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    current_user = get_jwt_identity()
+    role = current_user["role"]
+    if role == "admin":
+        # Admin can see all user details
+        return jsonify(logged_in_as=current_user, role=role), 200
+    elif role == "user":
+        # User can only see their own details
+        return jsonify(logged_in_as=current_user, role=role), 200
+    else:
+        return jsonify({"message": "Invalid role"}), 403
+
+
+@jwt_required()
 @user_bp.route("/display", methods=["GET"])
 async def get_all_books():
+    verify_jwt_in_request()
+    current_user = get_jwt_identity()
+    if not verify_admin_role(current_user):
+        return (
+            jsonify(message="You are not permitted to perform this action!"),
+            401,
+        )
     try:
         all_users = users_collection.find()
         users = []
@@ -59,8 +113,18 @@ async def get_all_books():
         )
 
 
+@jwt_required()
 @user_bp.route("/display/<id_or_email>", methods=["GET"])
 async def get_user(id_or_email: str):
+    verify_jwt_in_request()
+    current_user = get_jwt_identity()
+
+    if not verify_admin_role(current_user):
+        return (
+            jsonify(message="You are not permitted to perform this action!"),
+            401,
+        )
+
     if "@" in id_or_email:
         search = {"email": id_or_email}
     else:

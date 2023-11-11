@@ -1,7 +1,9 @@
 from flask import Blueprint, request, jsonify
+from flask_jwt_extended import get_jwt_identity, jwt_required, verify_jwt_in_request
 from pydantic import ValidationError
 from models.book import CreateBook, Book
 from mongo_connection import books_collection
+from utils.utils import verify_admin_role
 
 book_bp = Blueprint("books", __name__, url_prefix="/books")
 
@@ -61,8 +63,10 @@ async def get_all_books():
         )
 
 
+@jwt_required()
 @book_bp.route("/display/<id_or_title>", methods=["GET"])
 async def get_books(id_or_title):
+    verify_jwt_in_request()
     if id_or_title.isdigit():
         search = {"bookId": int(id_or_title)}
     else:
@@ -84,8 +88,10 @@ async def get_books(id_or_title):
         )
 
 
+@jwt_required()
 @book_bp.route("/filter", methods=["GET"])
 async def filter_books():
+    verify_jwt_in_request()
     match_query_structure = {
         "genre": "genre",
         "title": "title",
@@ -112,7 +118,6 @@ async def filter_books():
 
         if queries in match_query_structure:
             filter_query[str(match_query_structure[queries])] = query
-    print(filter_query)
 
     try:
         books = list(books_collection.find(filter_query))
@@ -127,6 +132,38 @@ async def filter_books():
             book["_id"] = str(book["_id"])
             filtered_books.append(book)
         return jsonify(books), 200
+    except Exception as e:
+        return (
+            jsonify(message=f"Server Error!, {str(e)}"),
+            500,
+        )
+
+
+@jwt_required
+@book_bp.route("/delete/<bookId>", methods=["DELETE"])
+async def delete_books(bookId: int):
+    verify_jwt_in_request()
+    if not verify_admin_role(get_jwt_identity()):
+        return (
+            jsonify(message="You are not permitted to perform this action!"),
+            401,
+        )
+    bookExists = books_collection.find_one({"bookId": int(bookId)}) == True
+    if not bookExists:
+        return (
+            jsonify(message="The book does not exist in the collection"),
+            404,
+        )
+    try:
+        title_projection = {"title": 1}
+        bookTitle = books_collection.find_one(
+            {"bookId": int(bookId)}, title_projection
+        )["title"]
+        books_collection.find_one_and_delete({"bookId": int(bookId)})
+        return (
+            jsonify(message=f"{bookTitle} deleted"),
+            200,
+        )
     except Exception as e:
         return (
             jsonify(message=f"Server Error!, {str(e)}"),
