@@ -46,32 +46,7 @@ def register():
 def get_all_books():
     verify_jwt_in_request()
     try:
-        all_books = list(books_collection.find())
-        all_reviews, all_comments, books, book_comments = (
-            list(reviews_collection.find()),
-            list(comments_collection.find()),
-            [],
-            [],
-        )
-
-        for reviews in all_reviews:
-            for comments in all_comments:
-                if comments["reviewId"] == str(reviews["_id"]):
-                    reviews.update({"comments": object_id_to_string(comments)})
-                else:
-                    book_comments.append(object_id_to_string(comments))
-
-        for book in all_books:
-            for reviews in all_reviews:
-                if reviews["bookId"] == str(book["_id"]):
-                    book.update({"reviews": object_id_to_string(reviews)})
-                book = object_id_to_string(book)
-            for comment in book_comments:
-                if comment["bookId"] == str(book["_id"]):
-                    book.update({"comments": object_id_to_string(comment)})
-                book = object_id_to_string(book)
-            books.append(book)
-
+        books = object_id_to_string(list(books_collection.find()))
         return jsonify(books), 200
     except Exception as e:
         return (
@@ -190,11 +165,9 @@ def delete_books(id_or_title):
         bookTitle = bookExists["title"]
         bookId = str(bookExists["_id"])
         books_collection.find_one_and_delete(search)
-        review = reviews_collection.find_one({"bookId": bookId})
-        reviews_collection.find_one_and_delete({"bookId": bookId})
-        if review:
-            commentId = str(review["_id"])
-            comments_collection.find_one_and_delete({"reviewId": commentId})
+        reviews_collection.delete_many({"bookId": bookId})
+        comments_collection.delete_many({"bookId": bookId})
+
         return (
             jsonify(message=f"{bookTitle} deleted"),
             200,

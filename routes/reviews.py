@@ -29,8 +29,14 @@ def register():
 
     try:
         del reviews_data["bookId"]
-        new_review = Review(userId=str(user_id), bookId=str(book_id), **reviews_data)
-        reviews_collection.insert_one(dict(new_review))
+        new_review = Review(userId=str(user_id), **reviews_data)
+        new_review_doc = reviews_collection.insert_one(dict(new_review))
+
+        new_review = dict(new_review)
+        new_review.update({"_id": new_review_doc.inserted_id})
+        books_collection.find_one_and_update(
+            {"_id": book_id}, {"$push": {"reviews": new_review}}
+        )
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
@@ -63,7 +69,6 @@ def edit_review(review_id):
     try:
         edit_review = Review(
             userId=str(user_id),
-            bookId=str(exitsing_review["bookId"]),
             **review_data,
         )
         reviews_collection.find_one_and_update(
@@ -79,7 +84,7 @@ def edit_review(review_id):
 
 @jwt_required
 @reviews_bp.route("/delete/<review_id>", methods=["DELETE"])
-def delete_review(review_id: int):
+def delete_review(review_id):
     verify_jwt_in_request()
     current_user = get_jwt_identity()
     isAdmin = verify_admin_role(current_user)
@@ -98,17 +103,21 @@ def delete_review(review_id: int):
         return jsonify(message="You are not allowed to perform this task!"), 401
 
     try:
-        comments_collection.find_one_and_delete(
-            {"reviewId": str(exitsing_review["_id"])}
+        comment_ids = [
+            comment["_id"] for comment in exitsing_review.get("comments", [])
+        ]
+        comments_collection.delete_many({"_id": {"$in": comment_ids}})
+        reviews_collection.delete_one({"_id": review_id})
+        books_collection.update_one(
+            {"reviews._id": review_id}, {"$pull": {"reviews": {"_id": review_id}}}
         )
-        reviews_collection.find_one_and_delete({"_id": review_id})
 
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
         return jsonify(message=str(e)), 500
 
-    return jsonify(message="Review Deleted!"), 201
+    return jsonify(message="Review Deleted!"), 200
 
 
 @jwt_required
@@ -117,29 +126,20 @@ def retreive_review():
     verify_jwt_in_request()
     current_user = get_jwt_identity()
     is_admin = verify_admin_role(current_user)
-    try:
-        user_id = create_id(current_user, "_id")
-    except InvalidIdException as invalidId:
-        return jsonify(message=str(invalidId)), 403
 
-    all_reviews_of_user, all_other_reviews = [], []
-
-    all_comments = list(comments_collection.find({}))
-    all_reviews = object_id_to_string(list(reviews_collection.find({})))
-
-    for reviews in all_reviews:
-        for comments in all_comments:
-            if comments["reviewId"] == str(reviews["_id"]):
-                reviews.update({"comments": object_id_to_string(comments)})
-
-    for reviews in all_reviews:
-        if reviews["userId"] == str(user_id):
-            all_reviews_of_user.append(reviews)
-        else:
-            all_other_reviews.append(reviews)
+    all_reviews_of_user = object_id_to_string(
+        list(reviews_collection.find({"userId": str(current_user["_id"])}))
+    )
 
     try:
         if is_admin:
+            all_other_reviews = object_id_to_string(
+                list(
+                    reviews_collection.find(
+                        {"userId": {"$ne": str(current_user["_id"])}}
+                    )
+                )
+            )
             return (
                 jsonify(
                     your_reviews=all_reviews_of_user,

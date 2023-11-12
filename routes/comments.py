@@ -1,9 +1,10 @@
+from bson import ObjectId
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required, verify_jwt_in_request
 from pydantic import ValidationError
 from custom_exceptions import InvalidIdException
 from models.comment import Comment
-from mongo_connection import comments_collection, books_collection
+from mongo_connection import comments_collection, books_collection, reviews_collection
 from utils.utils import create_id, object_id_to_string, verify_admin_role
 
 comment_bp = Blueprint("comments", __name__, url_prefix="/comments")
@@ -15,19 +16,46 @@ def register():
     verify_jwt_in_request()
     current_user = get_jwt_identity()
     comment_data = request.get_json()
+
+    if not ("reviewId" in comment_data):
+        return jsonify(message="Please add a reviewId"), 403
+
     try:
-        book_id = create_id(comment_data, "bookId")
+        review_id = create_id(comment_data, "reviewId")
         user_id = create_id(current_user, "_id")
     except InvalidIdException as invalidId:
         return jsonify(message=str(invalidId)), 403
 
-    bookExists = books_collection.find_one({"_id": book_id})
-    if not bookExists:
-        return jsonify(message="The book does not exist"), 404
+    if review_id:
+        reviewExists = reviews_collection.find_one({"_id": review_id})
+        if not reviewExists:
+            return jsonify(message="The review does not exist"), 404
 
     try:
         new_comment = Comment(userId=str(user_id), **comment_data)
-        comments_collection.insert_one(dict(new_comment))
+        new_comment_doc = comments_collection.insert_one(dict(new_comment))
+
+        new_comment = dict(new_comment)
+        new_comment.update({"_id": new_comment_doc.inserted_id})
+        reviews_collection.find_one_and_update(
+            {"_id": review_id},
+            {
+                "$push": {
+                    "comments": dict(new_comment),
+                }
+            },
+        )
+        books_collection.update_one(
+            {"reviews._id": review_id},
+            {
+                "$push": {
+                    "reviews.$.comments": {
+                        "_id": new_comment["_id"],
+                        **dict(new_comment),
+                    }
+                }
+            },
+        )
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
@@ -60,18 +88,25 @@ def edit_comment(comment_id):
     try:
         edit_comment = Comment(
             userId=str(user_id),
-            bookId=exitsing_comment["bookId"],
             **comment_data,
         )
-        comments_collection.find_one_and_update(
+        
+        new_comment = comments_collection.find_one_and_update(
             {"_id": comment_id}, {"$set": dict(edit_comment)}
+        )
+        reviews_collection.find_one_and_update(
+            {"comments._id": comment_id}, {"$set": {"comments": new_comment}}
+        )
+        books_collection.update_one(
+            {"reviews.comments._id": comment_id},
+            {"$set": {"reviews.$.comments": new_comment}},
         )
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
         return jsonify(message=str(e)), 500
 
-    return jsonify(message="Comment Edited!"), 201
+    return jsonify(message="Comment Edited!"), 200
 
 
 @jwt_required
@@ -97,6 +132,13 @@ def delete_comment(comment_id):
 
     try:
         comments_collection.find_one_and_delete({"_id": comment_id})
+        reviews_collection.update_one(
+            {"comments._id": comment_id}, {"$pull": {"comments": {"_id": comment_id}}}
+        )
+        books_collection.update_one(
+            {"reviews.comments._id": comment_id},
+            {"$pull": {"reviews.$.comments": {"_id": comment_id}}},
+        )
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:

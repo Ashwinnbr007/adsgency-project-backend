@@ -5,8 +5,5 @@ from datetime import datetime
 
 class Comment(BaseModel):
     userId: str  # based on auth
-    reviewId: Optional[str] = None
-    bookId: str
-
     text: str
     createdAt: Optional[datetime] = Field(default=datetime.utcnow())

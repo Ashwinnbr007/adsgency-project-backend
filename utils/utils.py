@@ -30,6 +30,8 @@ def create_id(obj, id=None):
     except Exception:
         raise InvalidIdException(f"The given id is invalid")
     try:
+        if id not in obj:
+            return None
         return ObjectId(obj[id])
     except Exception:
         raise InvalidIdException(f"The given {id} is invalid")
