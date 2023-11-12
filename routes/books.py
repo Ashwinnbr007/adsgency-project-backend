@@ -1,9 +1,9 @@
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required, verify_jwt_in_request
 from pydantic import ValidationError
-from models.book import CreateBook, Book
+from models.book import Book
 from mongo_connection import books_collection
-from utils.utils import verify_admin_role
+from utils.utils import object_id_to_string, verify_admin_role
 
 book_bp = Blueprint("books", __name__, url_prefix="/books")
 
@@ -11,27 +11,24 @@ book_bp = Blueprint("books", __name__, url_prefix="/books")
 @book_bp.route("/register", methods=["POST"])
 def register():
     book_data = request.get_json()
-    try:
-        data = CreateBook(**book_data)
-    except ValidationError as e:
-        return jsonify(message=str(e)), 400
-
     id = books_collection.count_documents({}) + 1
-    bookExists = books_collection.find_one({"title": data.title, "author": data.author})
+
+    unique_book_query = {
+        "title": book_data["title"],
+        "author": book_data["author"],
+        "published_date": book_data["published_date"],
+    }
+
+    bookExists = books_collection.find_one(unique_book_query)
 
     if not bookExists:
-        new_book = Book(bookId=id, **book_data)
+        try:
+            new_book = Book(bookId=id, **book_data)
+        except ValidationError as e:
+            return jsonify(message=str(e)), 403
+
         new_book.published_date = new_book.published_date.strftime("%d-%m-%Y")
 
-        if type(new_book.review.replies) != list:
-            new_book.review.replies = list(dict(new_book.review.replies))
-        else:
-            replies = []
-            for reply in new_book.review.replies:
-                replies.append(dict(reply))
-            new_book.review.replies = replies
-
-        new_book.review = dict(new_book.review)
         try:
             books_collection.insert_one(dict(new_book))
         except Exception as e:
@@ -52,7 +49,7 @@ async def get_all_books():
         books = []
 
         for book in all_books:
-            book["_id"] = str(book["_id"])
+            book = object_id_to_string(book)
             books.append(book)
 
         return jsonify(books), 200
@@ -79,7 +76,7 @@ async def get_books(id_or_title):
                 jsonify(message=f"Book {search} doesnt exist."),
                 404,
             )
-        book["_id"] = str(book["_id"])
+        book = object_id_to_string(book)
         return jsonify(book), 200
     except Exception as e:
         return (
@@ -129,7 +126,7 @@ async def filter_books():
                 404,
             )
         for book in books:
-            book["_id"] = str(book["_id"])
+            book = object_id_to_string(book)
             filtered_books.append(book)
         return jsonify(books), 200
     except Exception as e:

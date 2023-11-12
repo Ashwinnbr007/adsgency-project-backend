@@ -5,9 +5,9 @@ from flask_jwt_extended import (
     jwt_required,
     verify_jwt_in_request,
 )
-from utils.utils import verify_admin_role
+from utils.utils import object_id_to_string, verify_admin_role
 from pydantic import ValidationError
-from models.user import CreateUser, User
+from models.user import User
 from mongo_connection import users_collection
 
 user_bp = Blueprint("user", __name__, url_prefix="/user")
@@ -17,35 +17,47 @@ user_bp = Blueprint("user", __name__, url_prefix="/user")
 def register():
     from app import bcrypt
 
-    try:
-        data = CreateUser(**request.get_json())
-    except ValidationError as e:
-        return jsonify(message=str(e)), 400
+    user_data = request.get_json()
 
-    hashed_password = bcrypt.generate_password_hash(data.password).decode("utf-8")
+    hashed_password = bcrypt.generate_password_hash(user_data["password"]).decode(
+        "utf-8"
+    )
 
     id = users_collection.count_documents({}) + 1
-    emailExists = users_collection.find_one({"email": data.email})
+    email_exists = users_collection.find_one({"email": user_data["email"]})
+    user_exists = users_collection.find_one({"username": user_data["username"]})
 
-    if not emailExists:
+    if email_exists:
+        return (
+            jsonify(
+                message="Email already registered, please use a different Email ID!"
+            ),
+            409,
+        )
+
+    if user_exists:
+        return (
+            jsonify(
+                message="Username already registered, please use a different username!"
+            ),
+            409,
+        )
+
+    try:
         new_user = User(
             userId=id,
-            username=data.username,
-            email=data.email,
-            role=data.role,
+            username=user_data["username"],
+            email=user_data["email"],
+            role=user_data["role"],
             password=hashed_password,
         )
-        try:
-            users_collection.insert_one(dict(new_user))
-        except Exception as e:
-            return jsonify(message=str(e)), 500
+        users_collection.insert_one(dict(new_user))
+    except ValidationError as e:
+        return jsonify(message=str(e)), 403
+    except Exception as e:
+        return jsonify(message=str(e)), 500
 
-        return jsonify(message="User registered successfully!"), 201
-
-    return (
-        jsonify(message="Email already registered, please use a different Email ID!"),
-        409,
-    )
+    return jsonify(message="User registered successfully!"), 201
 
 
 @user_bp.route("/login", methods=["POST"])
@@ -72,21 +84,6 @@ def login():
         return jsonify({"message": "Invalid username or password"}), 401
 
 
-@user_bp.route("/protected", methods=["GET"])
-@jwt_required()
-def protected():
-    current_user = get_jwt_identity()
-    role = current_user["role"]
-    if role == "admin":
-        # Admin can see all user details
-        return jsonify(logged_in_as=current_user, role=role), 200
-    elif role == "user":
-        # User can only see their own details
-        return jsonify(logged_in_as=current_user, role=role), 200
-    else:
-        return jsonify({"message": "Invalid role"}), 403
-
-
 @jwt_required()
 @user_bp.route("/display", methods=["GET"])
 async def get_all_books():
@@ -102,7 +99,7 @@ async def get_all_books():
         users = []
 
         for user in all_users:
-            user["_id"] = str(user["_id"])
+            user = object_id_to_string(user)
             users.append(user)
 
         return jsonify(users), 200
@@ -137,7 +134,7 @@ async def get_user(id_or_email: str):
                 jsonify(message=f"User {search} doesnt exist."),
                 404,
             )
-        user["_id"] = str(user["_id"])
+        user = object_id_to_string(user)
         return jsonify(user), 200
     except Exception as e:
         return (
