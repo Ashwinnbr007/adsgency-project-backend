@@ -96,7 +96,7 @@ def delete_comment(comment_id):
         return jsonify(message="You are not allowed to perform this task!"), 401
 
     try:
-        comments_collection.find_one_and_delete({"commentId": comment_id})
+        comments_collection.find_one_and_delete({"_id": comment_id})
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
