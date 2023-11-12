@@ -7,9 +7,11 @@ import os
 from routes.users import user_bp
 from routes.books import book_bp
 from routes.comments import comment_bp
+from routes.reviews import reviews_bp
 
 app = Flask(__name__)
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+# Expiry not added to test
+# app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
 CORS(app)
 bcrypt = Bcrypt(app)
 
@@ -19,6 +21,7 @@ app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET")
 app.register_blueprint(user_bp)
 app.register_blueprint(book_bp)
 app.register_blueprint(comment_bp)
+app.register_blueprint(reviews_bp)
 
 
 @app.route("/")

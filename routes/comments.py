@@ -45,6 +45,9 @@ def edit_comment(comment_id: int):
     if not exitsing_comment:
         return jsonify(message="Could not find the comment!"), 404
 
+    if current_user["userId"] != exitsing_comment["userId"]:
+        return jsonify(message="You are not allowed to perform this action!"), 401
+
     try:
         edit_comment = Comment(
             userId=current_user["userId"],
@@ -102,9 +105,15 @@ def retreive_comment():
 
     try:
         if is_admin:
-            all_comments = object_id_to_string(list(comments_collection.find({})))
+            all_other_comments = object_id_to_string(
+                list(
+                    comments_collection.find(
+                        {"userId": {"$ne": int(current_user["userId"])}}
+                    )
+                )
+            )
             return (
-                jsonify(your_comments=all_comments_of_user, all_comments=all_comments),
+                jsonify(your_comments=all_comments_of_user, all_other_comments=all_other_comments),
                 200,
             )
 

@@ -5,9 +5,10 @@ from .comment import Comment
 
 
 class Review(BaseModel):
+    reviewId: int
     userId: int
     bookId: int
+
     rating: int = Field(None, ge=1, le=5)
-    text: str
-    replies: Optional[List[Comment]] = None
+    text: Optional[str] = None
     createdAt: Optional[datetime] = Field(default=datetime.utcnow())
