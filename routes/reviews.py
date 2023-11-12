@@ -122,15 +122,24 @@ def retreive_review():
     except InvalidIdException as invalidId:
         return jsonify(message=str(invalidId)), 403
 
-    all_reviews_of_user = object_id_to_string(
-        list(reviews_collection.find({"userId": str(user_id)}))
-    )
+    all_reviews_of_user, all_other_reviews = [], []
+
+    all_comments = list(comments_collection.find({}))
+    all_reviews = object_id_to_string(list(reviews_collection.find({})))
+
+    for reviews in all_reviews:
+        for comments in all_comments:
+            if comments["reviewId"] == str(reviews["_id"]):
+                reviews.update({"comments": object_id_to_string(comments)})
+
+    for reviews in all_reviews:
+        if reviews["userId"] == str(user_id):
+            all_reviews_of_user.append(reviews)
+        else:
+            all_other_reviews.append(reviews)
 
     try:
         if is_admin:
-            all_other_reviews = object_id_to_string(
-                list(reviews_collection.find({"userId": {"$ne": str(user_id)}}))
-            )
             return (
                 jsonify(
                     your_reviews=all_reviews_of_user,
