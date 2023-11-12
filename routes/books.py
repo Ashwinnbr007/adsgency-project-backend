@@ -1,29 +1,28 @@
+from bson import ObjectId
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required, verify_jwt_in_request
 from pydantic import ValidationError
+from custom_exceptions import InvalidIdException
 from models.book import Book
-from mongo_connection import books_collection
-from utils.utils import object_id_to_string, verify_admin_role
+from mongo_connection import books_collection, reviews_collection, comments_collection
+from utils.utils import create_id, object_id_to_string, verify_admin_role
 
 book_bp = Blueprint("books", __name__, url_prefix="/books")
 
 
+@jwt_required
 @book_bp.route("/register", methods=["POST"])
 def register():
+    verify_jwt_in_request()
     book_data = request.get_json()
-    id = books_collection.count_documents({}) + 1
 
-    unique_book_query = {
-        "title": book_data["title"],
-        "author": book_data["author"],
-        "published_date": book_data["published_date"],
-    }
+    unique_book_query = {"title": book_data["title"], "author": book_data["author"]}
 
     bookExists = books_collection.find_one(unique_book_query)
 
     if not bookExists:
         try:
-            new_book = Book(bookId=id, **book_data)
+            new_book = Book(**book_data)
         except ValidationError as e:
             return jsonify(message=str(e)), 403
 
@@ -42,8 +41,10 @@ def register():
     )
 
 
+@jwt_required
 @book_bp.route("/display", methods=["GET"])
-async def get_all_books():
+def get_all_books():
+    verify_jwt_in_request()
     try:
         all_books = list(books_collection.find())
         books = []
@@ -62,12 +63,17 @@ async def get_all_books():
 
 @jwt_required()
 @book_bp.route("/display/<id_or_title>", methods=["GET"])
-async def get_books(id_or_title):
+def get_book(id_or_title):
     verify_jwt_in_request()
-    if id_or_title.isdigit():
-        search = {"bookId": int(id_or_title)}
-    else:
+    try:
+        search = {"_id": create_id(id_or_title)}
+    except InvalidIdException:
         search = {"title": id_or_title}
+    except Exception as e:
+        return (
+            jsonify(message=f"Server Error!, {str(e)}"),
+            500,
+        )
 
     try:
         book = books_collection.find_one(search)
@@ -87,14 +93,14 @@ async def get_books(id_or_title):
 
 @jwt_required()
 @book_bp.route("/filter", methods=["GET"])
-async def filter_books():
+def filter_books():
     verify_jwt_in_request()
     match_query_structure = {
+        "rating": "_id",
         "genre": "genre",
         "title": "title",
         "author": "author",
         "published_date": "published_date",
-        "rating": "review.rating",
     }
 
     filter_query = {}
@@ -109,9 +115,12 @@ async def filter_books():
                 query["$lte"] = fields[1]
 
         if "rating" in queries:
-            query = {"$gte": int(fields[0])}
+            rating_query = {"$gte": int(fields[0])}
             if len(fields) > 1:
-                query["$lte"] = int(fields[1])
+                rating_query["$lte"] = int(fields[1])
+
+            for books in list(reviews_collection.find({"rating": rating_query})):
+                query = ObjectId(books["bookId"])
 
         if queries in match_query_structure:
             filter_query[str(match_query_structure[queries])] = query
@@ -137,26 +146,36 @@ async def filter_books():
 
 
 @jwt_required
-@book_bp.route("/delete/<bookId>", methods=["DELETE"])
-async def delete_books(bookId: int):
+@book_bp.route("/delete/<id_or_title>", methods=["DELETE"])
+def delete_books(id_or_title):
     verify_jwt_in_request()
     if not verify_admin_role(get_jwt_identity()):
         return (
             jsonify(message="You are not permitted to perform this action!"),
             401,
         )
-    bookExists = books_collection.find_one({"bookId": int(bookId)}) == True
+    try:
+        search = {"_id": create_id(id_or_title)}
+    except InvalidIdException:
+        search = {"title": id_or_title}
+    except Exception as e:
+        return (jsonify(message=f"Server Error!, {str(e)}"), 500)
+
+    bookExists = books_collection.find_one(search)
     if not bookExists:
         return (
             jsonify(message="The book does not exist in the collection"),
             404,
         )
     try:
-        title_projection = {"title": 1}
-        bookTitle = books_collection.find_one(
-            {"bookId": int(bookId)}, title_projection
-        )["title"]
-        books_collection.find_one_and_delete({"bookId": int(bookId)})
+        bookTitle = bookExists["title"]
+        bookId = str(bookExists["_id"])
+        books_collection.find_one_and_delete(search)
+        review = reviews_collection.find_one({"bookId": bookId})
+        reviews_collection.find_one_and_delete({"bookId": bookId})
+        if review:
+            commentId = str(review["_id"])
+            comments_collection.find_one_and_delete({"reviewId": commentId})
         return (
             jsonify(message=f"{bookTitle} deleted"),
             200,

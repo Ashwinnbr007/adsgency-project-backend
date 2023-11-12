@@ -10,8 +10,7 @@ from routes.comments import comment_bp
 from routes.reviews import reviews_bp
 
 app = Flask(__name__)
-# Expiry not added to test
-# app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=1)
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(weeks=1)
 CORS(app)
 bcrypt = Bcrypt(app)
 

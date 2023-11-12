@@ -4,10 +4,9 @@ from datetime import datetime
 
 
 class Comment(BaseModel):
-    userId: int  # based on auth
-    commentId: int  # based on number of comments
-    reviewId: Optional[int] = None
-    bookId: int
+    userId: str  # based on auth
+    reviewId: Optional[str] = None
+    bookId: str
 
     text: str
     createdAt: Optional[datetime] = Field(default=datetime.utcnow())
