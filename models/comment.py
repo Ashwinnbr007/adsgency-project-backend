@@ -4,8 +4,8 @@ from datetime import datetime
 
 
 class Comment(BaseModel):
-    userId: int
-    commentId: int
+    userId: int  # based on auth
+    commentId: int  # based on number of comments
     reviewId: Optional[int] = None
     bookId: int
 
