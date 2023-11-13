@@ -46,24 +46,23 @@ def register():
     )
 
 
+def aggregare_books_review(books):
+    all_book_ids = [book["_id"] for book in books]
+    reviews = object_id_to_string(
+        list(reviews_collection.find({"bookId": {"$in": all_book_ids}}))
+    )
+    aggregate_review_comments(reviews=reviews, comments_collection=comments_collection)
+    for book in books:
+        book_reviews = []
+        for review in reviews:
+            if review["bookId"] == str(book["_id"]):
+                book_reviews.append(object_id_to_string(review))
+        book.update({"reviews": book_reviews})
+
+
 @jwt_required
 @book_bp.route("/display", methods=["GET"])
 def get_all_books():
-    def aggregare_books_review():
-        all_book_ids = [book["_id"] for book in books]
-        reviews = object_id_to_string(
-            list(reviews_collection.find({"bookId": {"$in": all_book_ids}}))
-        )
-        aggregate_review_comments(
-            reviews=reviews, comments_collection=comments_collection
-        )
-        for book in books:
-            book_reviews = []
-            for review in reviews:
-                if review["bookId"] == str(book["_id"]):
-                    book_reviews.append(object_id_to_string(review))
-            book.update({"reviews": book_reviews})
-
     verify_jwt_in_request()
     try:
         books = object_id_to_string(list(books_collection.find()))
@@ -92,13 +91,13 @@ def get_book(id_or_title):
         )
 
     try:
-        book = books_collection.find_one(search)
+        book = [object_id_to_string(books_collection.find_one(search))]
         if not book:
             return (
                 jsonify(message=f"Book {search} doesnt exist."),
                 404,
             )
-        book = object_id_to_string(book)
+        aggregare_books_review(book)
         return jsonify(book), 200
     except Exception as e:
         return (
