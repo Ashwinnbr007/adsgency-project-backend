@@ -39,10 +39,10 @@ You can either run the app as a docker image (If you have docker installed) or y
 
 Before you run the app, make sure to add the following env variables to .env in the root of the project
 
-```MONGO_USERNAME=adsgency-project```
-```MONGO_PASSWORD=4GtXmRvBXczcoLqh```
-```MONGO_URI=mongodb+srv://adsgency-project:4GtXmRvBXczcoLqh@adsgency-project.6h1lfjc.mongodb.net/```
-```SESSION_SECRET=e5cf878c913ba673b187c8af6ed007da```
-```JWT_SECRET=bba11ebc9e97083b4e2a9856a146c3c0```
+- ```MONGO_USERNAME=adsgency-project```
+- ```MONGO_PASSWORD=4GtXmRvBXczcoLqh```
+- ```MONGO_URI=mongodb+srv://adsgency-project:4GtXmRvBXczcoLqh@adsgency-project.6h1lfjc.mongodb.net/```
+- ```SESSION_SECRET=e5cf878c913ba673b187c8af6ed007da```
+- ```JWT_SECRET=bba11ebc9e97083b4e2a9856a146c3c0```
 
 These env files will allow you to connect to the database on MongoDB cloud servers.
