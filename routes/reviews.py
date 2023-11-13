@@ -29,14 +29,8 @@ def register():
 
     try:
         del reviews_data["bookId"]
-        new_review = Review(userId=str(user_id), **reviews_data)
-        new_review_doc = reviews_collection.insert_one(dict(new_review))
-
-        new_review = dict(new_review)
-        new_review.update({"_id": new_review_doc.inserted_id})
-        books_collection.find_one_and_update(
-            {"_id": book_id}, {"$push": {"reviews": new_review}}
-        )
+        new_review = Review(userId=str(user_id), bookId=book_id, **reviews_data)
+        reviews_collection.insert_one(dict(new_review))
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
@@ -69,6 +63,7 @@ def edit_review(review_id):
     try:
         edit_review = Review(
             userId=str(user_id),
+            bookId=exitsing_review["bookId"],
             **review_data,
         )
         reviews_collection.find_one_and_update(
@@ -103,15 +98,9 @@ def delete_review(review_id):
         return jsonify(message="You are not allowed to perform this task!"), 401
 
     try:
-        comment_ids = [
-            comment["_id"] for comment in exitsing_review.get("comments", [])
-        ]
-        comments_collection.delete_many({"_id": {"$in": comment_ids}})
+        comment_in_review_id = str(exitsing_review["_id"])
+        comments_collection.delete_many({"reviewId": {"$in": comment_in_review_id}})
         reviews_collection.delete_one({"_id": review_id})
-        books_collection.update_one(
-            {"reviews._id": review_id}, {"$pull": {"reviews": {"_id": review_id}}}
-        )
-
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
