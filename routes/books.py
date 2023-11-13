@@ -5,7 +5,12 @@ from pydantic import ValidationError
 from custom_exceptions import InvalidIdException
 from models.book import Book
 from mongo_connection import books_collection, reviews_collection, comments_collection
-from utils.utils import create_id, object_id_to_string, verify_admin_role
+from utils.utils import (
+    create_id,
+    object_id_to_string,
+    verify_admin_role,
+    aggregate_review_comments,
+)
 
 book_bp = Blueprint("books", __name__, url_prefix="/books")
 
@@ -44,9 +49,26 @@ def register():
 @jwt_required
 @book_bp.route("/display", methods=["GET"])
 def get_all_books():
+    def aggregare_books_review():
+        all_book_ids = [book["_id"] for book in books]
+        reviews = object_id_to_string(
+            list(reviews_collection.find({"bookId": {"$in": all_book_ids}}))
+        )
+        aggregate_review_comments(
+            reviews=reviews, comments_collection=comments_collection
+        )
+        for book in books:
+            book_reviews = []
+            for review in reviews:
+                if review["bookId"] == str(book["_id"]):
+                    book_reviews.append(object_id_to_string(review))
+            book.update({"reviews": book_reviews})
+
     verify_jwt_in_request()
     try:
         books = object_id_to_string(list(books_collection.find()))
+        aggregare_books_review()
+
         return jsonify(books), 200
     except Exception as e:
         return (
@@ -164,9 +186,15 @@ def delete_books(id_or_title):
     try:
         bookTitle = bookExists["title"]
         bookId = str(bookExists["_id"])
-        reviews_collection.delete_many({"bookId": bookId})
-        comments_collection.delete_many({"bookId": bookId})
 
+        review_ids = [
+            review["_id"]
+            for review in object_id_to_string(
+                list(reviews_collection.find({"bookId": bookId}))
+            )
+        ]
+        reviews_collection.delete_many({"bookId": bookId})
+        comments_collection.delete_many({"reviewId": {"$in": review_ids}})
         return (
             jsonify(message=f"{bookTitle} deleted"),
             200,
