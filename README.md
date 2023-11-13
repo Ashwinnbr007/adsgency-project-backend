@@ -7,6 +7,10 @@ Use the app to create books, reviews and comments on reviews.
 The api documentation as well as the postman collection for all endpoints : 
 [Postman Collection](https://solar-astronaut-555802.postman.co/workspace/adsgency~c295e425-153c-4689-901a-8fcebe007c80/overview).
 
+## UML Diagram
+
+[UML Diagram](https://drive.google.com/file/d/1sbZFf0UFpqHRqhZB2u9eWyIXdbDQat7L/view?usp=sharing).
+
 ## Getting Started
 
 ### Prerequisites
