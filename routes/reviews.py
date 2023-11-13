@@ -4,7 +4,12 @@ from pydantic import ValidationError
 from custom_exceptions import InvalidIdException
 from models.review import Review
 from mongo_connection import books_collection, reviews_collection, comments_collection
-from utils.utils import create_id, object_id_to_string, verify_admin_role
+from utils.utils import (
+    create_id,
+    object_id_to_string,
+    verify_admin_role,
+    aggregate_review_comments,
+)
 
 reviews_bp = Blueprint("reviews", __name__, url_prefix="/reviews")
 
@@ -110,17 +115,6 @@ def delete_review(review_id):
 @jwt_required
 @reviews_bp.route("/retreive", methods=["GET"])
 def retreive_review():
-    def aggregate_review_comments(reviews):
-        all_review_ids = [review["_id"] for review in reviews]
-        comments = list(comments_collection.find({"reviewId": {"$in": all_review_ids}}))
-        
-        for review in reviews:
-            review_comment = []
-            for comment in comments:
-                if comment["reviewId"] == str(review["_id"]):
-                    review_comment.append(object_id_to_string(comment))
-            review.update({"comments": review_comment})
-
     verify_jwt_in_request()
     current_user = get_jwt_identity()
     is_admin = verify_admin_role(current_user)
@@ -128,7 +122,9 @@ def retreive_review():
     all_reviews_of_user = object_id_to_string(
         list(reviews_collection.find({"userId": str(current_user["_id"])}))
     )
-    aggregate_review_comments(reviews=all_reviews_of_user)
+    aggregate_review_comments(
+        reviews=all_reviews_of_user, comments_collection=comments_collection
+    )
 
     try:
         if is_admin:
@@ -139,7 +135,9 @@ def retreive_review():
                     )
                 )
             )
-            aggregate_review_comments(reviews=all_other_reviews)
+            aggregate_review_comments(
+                reviews=all_other_reviews, comments_collection=comments_collection
+            )
             return (
                 jsonify(
                     your_reviews=all_reviews_of_user,

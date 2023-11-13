@@ -37,3 +37,15 @@ def create_id(obj, id=None):
         return ObjectId(obj[id])
     except Exception:
         raise InvalidIdException(f"The given {id} is invalid")
+
+
+def aggregate_review_comments(reviews, comments_collection):
+    all_review_ids = [review["_id"] for review in reviews]
+    comments = list(comments_collection.find({"reviewId": {"$in": all_review_ids}}))
+    
+    for review in reviews:
+        review_comment = []
+        for comment in comments:
+            if comment["reviewId"] == str(review["_id"]):
+                review_comment.append(object_id_to_string(comment))
+        review.update({"comments": review_comment})
