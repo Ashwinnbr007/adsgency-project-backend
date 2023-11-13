@@ -32,7 +32,7 @@ def register():
             return jsonify(message="The review does not exist"), 404
 
     try:
-        new_comment = Comment(userId=str(user_id), reviewId=review_id, **comment_data)
+        new_comment = Comment(userId=str(user_id), **comment_data)
         comments_collection.insert_one(dict(new_comment))
     except ValidationError as e:
         return jsonify(message=str(e)), 403
@@ -66,6 +66,7 @@ def edit_comment(comment_id):
     try:
         edit_comment = Comment(
             userId=str(user_id),
+            reviewId=exitsing_comment["reviewId"],
             **comment_data,
         )
 

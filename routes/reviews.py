@@ -1,4 +1,3 @@
-from bson import ObjectId
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import get_jwt_identity, jwt_required, verify_jwt_in_request
 from pydantic import ValidationError
@@ -28,8 +27,7 @@ def register():
         return jsonify(message="The book does not exist"), 404
 
     try:
-        del reviews_data["bookId"]
-        new_review = Review(userId=str(user_id), bookId=book_id, **reviews_data)
+        new_review = Review(userId=str(user_id), **reviews_data)
         reviews_collection.insert_one(dict(new_review))
     except ValidationError as e:
         return jsonify(message=str(e)), 403
@@ -99,7 +97,7 @@ def delete_review(review_id):
 
     try:
         comment_in_review_id = str(exitsing_review["_id"])
-        comments_collection.delete_many({"reviewId": {"$in": comment_in_review_id}})
+        comments_collection.delete_many({"reviewId": {"$in": [comment_in_review_id]}})
         reviews_collection.delete_one({"_id": review_id})
     except ValidationError as e:
         return jsonify(message=str(e)), 403

@@ -10,6 +10,5 @@ class Review(BaseModel):
     bookId: str
 
     rating: int = Field(None, ge=1, le=5)
-    comments: Optional[List[Comment]] = []
     text: Optional[str] = None
     createdAt: Optional[datetime] = Field(default=datetime.utcnow())

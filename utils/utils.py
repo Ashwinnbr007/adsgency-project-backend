@@ -32,6 +32,8 @@ def create_id(obj, id=None):
     try:
         if id not in obj:
             return None
+        if "_id" in id:
+            return obj[id]
         return ObjectId(obj[id])
     except Exception:
         raise InvalidIdException(f"The given {id} is invalid")

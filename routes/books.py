@@ -164,7 +164,6 @@ def delete_books(id_or_title):
     try:
         bookTitle = bookExists["title"]
         bookId = str(bookExists["_id"])
-        books_collection.find_one_and_delete(search)
         reviews_collection.delete_many({"bookId": bookId})
         comments_collection.delete_many({"bookId": bookId})
 
