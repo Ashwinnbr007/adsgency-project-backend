@@ -110,6 +110,17 @@ def delete_review(review_id):
 @jwt_required
 @reviews_bp.route("/retreive", methods=["GET"])
 def retreive_review():
+    def aggregate_review_comments(reviews):
+        all_review_ids = [review["_id"] for review in reviews]
+        comments = list(comments_collection.find({"reviewId": {"$in": all_review_ids}}))
+        
+        for review in reviews:
+            review_comment = []
+            for comment in comments:
+                if comment["reviewId"] == str(review["_id"]):
+                    review_comment.append(object_id_to_string(comment))
+            review.update({"comments": review_comment})
+
     verify_jwt_in_request()
     current_user = get_jwt_identity()
     is_admin = verify_admin_role(current_user)
@@ -117,16 +128,8 @@ def retreive_review():
     all_reviews_of_user = object_id_to_string(
         list(reviews_collection.find({"userId": str(current_user["_id"])}))
     )
-    all_review_ids = [reviews["_id"] for reviews in all_reviews_of_user]
-    all_comments_of_review = list(comments_collection.find({"reviewId": {"$in" : all_review_ids}}))
+    aggregate_review_comments(reviews=all_reviews_of_user)
 
-    for reviews in all_reviews_of_user:
-        review_comment = []
-        for comments in all_comments_of_review:
-            if comments['reviewId'] == str(reviews["_id"]):
-                review_comment.append(object_id_to_string(comments))
-        reviews.update({"comments": review_comment})
-    
     try:
         if is_admin:
             all_other_reviews = object_id_to_string(
@@ -136,6 +139,7 @@ def retreive_review():
                     )
                 )
             )
+            aggregate_review_comments(reviews=all_other_reviews)
             return (
                 jsonify(
                     your_reviews=all_reviews_of_user,
