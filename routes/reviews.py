@@ -117,7 +117,16 @@ def retreive_review():
     all_reviews_of_user = object_id_to_string(
         list(reviews_collection.find({"userId": str(current_user["_id"])}))
     )
+    all_review_ids = [reviews["_id"] for reviews in all_reviews_of_user]
+    all_comments_of_review = list(comments_collection.find({"reviewId": {"$in" : all_review_ids}}))
 
+    for reviews in all_reviews_of_user:
+        review_comment = []
+        for comments in all_comments_of_review:
+            if comments['reviewId'] == str(reviews["_id"]):
+                review_comment.append(object_id_to_string(comments))
+        reviews.update({"comments": review_comment})
+    
     try:
         if is_admin:
             all_other_reviews = object_id_to_string(
