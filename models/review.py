@@ -7,6 +7,7 @@ from .comment import Comment
 
 class Review(BaseModel):
     userId: str
+    bookId: str
 
     rating: int = Field(None, ge=1, le=5)
     comments: Optional[List[Comment]] = []

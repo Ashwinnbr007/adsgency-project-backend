@@ -32,30 +32,8 @@ def register():
             return jsonify(message="The review does not exist"), 404
 
     try:
-        new_comment = Comment(userId=str(user_id), **comment_data)
-        new_comment_doc = comments_collection.insert_one(dict(new_comment))
-
-        new_comment = dict(new_comment)
-        new_comment.update({"_id": new_comment_doc.inserted_id})
-        reviews_collection.find_one_and_update(
-            {"_id": review_id},
-            {
-                "$push": {
-                    "comments": dict(new_comment),
-                }
-            },
-        )
-        books_collection.update_one(
-            {"reviews._id": review_id},
-            {
-                "$push": {
-                    "reviews.$.comments": {
-                        "_id": new_comment["_id"],
-                        **dict(new_comment),
-                    }
-                }
-            },
-        )
+        new_comment = Comment(userId=str(user_id), reviewId=review_id, **comment_data)
+        comments_collection.insert_one(dict(new_comment))
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
@@ -90,16 +68,9 @@ def edit_comment(comment_id):
             userId=str(user_id),
             **comment_data,
         )
-        
-        new_comment = comments_collection.find_one_and_update(
+
+        comments_collection.find_one_and_update(
             {"_id": comment_id}, {"$set": dict(edit_comment)}
-        )
-        reviews_collection.find_one_and_update(
-            {"comments._id": comment_id}, {"$set": {"comments": new_comment}}
-        )
-        books_collection.update_one(
-            {"reviews.comments._id": comment_id},
-            {"$set": {"reviews.$.comments": new_comment}},
         )
     except ValidationError as e:
         return jsonify(message=str(e)), 403
@@ -132,13 +103,6 @@ def delete_comment(comment_id):
 
     try:
         comments_collection.find_one_and_delete({"_id": comment_id})
-        reviews_collection.update_one(
-            {"comments._id": comment_id}, {"$pull": {"comments": {"_id": comment_id}}}
-        )
-        books_collection.update_one(
-            {"reviews.comments._id": comment_id},
-            {"$pull": {"reviews.$.comments": {"_id": comment_id}}},
-        )
     except ValidationError as e:
         return jsonify(message=str(e)), 403
     except Exception as e:
